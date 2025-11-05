@@ -95,7 +95,7 @@ Integração com ECS para gerenciamento de serviços e tasks
     - AWS service/ EC2
     - Nome: app-task-role-ssm
     - Política: AmazonSSMamagedInstanceCore
->OBS: caso queria que o Agente tenha nivel mais elevado em sua aplicacao como manipular a aplicacao, criacao de servicos entre outros vc tera que acrescentar mais policitas de acondo com o servico que queria que ele manipule. não adiicone policita admin, adicione apenas as policitas dos servicos que vc queira que ele manipule.
+>OBS: caso queria que o Agente tenha nivel mais elevado em sua aplicacao como manipular a aplicação, crição de serviços entre outros você terá que acrescentar mais politicas de acondo com o serviço que queria que ele manipule. não adiicone politicaa admin, adicione apenas as politicas dos serviços que vc queira que ele manipule.
 
  2. Crie uma instância Linux free tier: 
     - Nome: app-task-instance-jarvis
@@ -276,7 +276,7 @@ q chat --agent "jarvis"
 # - "Verifique os logs do backend"
 # - "Crie mais um security group"
 ```
->Obs: Ao terminar de usar o agente e testar o projeto e agora deseja desprovisionar toda infraestrutura. primeiro apague a instancia criada para manupulação do agente antes de usar o "terraform destroy" para não causar falha, pois a instancia foi provisionada fora do terraform.
+>Obs: Ao terminar de usar o agente e testar o projeto e agora deseja desprovisionar toda infraestrutura. primeiro apague a instancia criada para manupulação do agente antes de usar o "terraform destroy" para não causar falha, pois a instancia foi provisionada fora do terraform e esta usando vpc e sg de servicos que foram criados pelo terraform.
 
 ## 📚 Documentação
 
