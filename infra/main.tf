@@ -61,9 +61,8 @@ resource "aws_internet_gateway" "igw" {
 }
 
 # -------------------------------
-# NAT Gateways (1 por AZ)
+# NAT Gateways
 # -------------------------------
-# Elastic IPs
 resource "aws_eip" "nat_1a" {
   domain = "vpc"
 }
@@ -72,10 +71,6 @@ resource "aws_eip" "nat_1b" {
   domain = "vpc"
 }
 
-
-
-
-# NATs
 resource "aws_nat_gateway" "nat_1a" {
   allocation_id = aws_eip.nat_1a.id
   subnet_id     = aws_subnet.pub_1a.id
@@ -91,7 +86,6 @@ resource "aws_nat_gateway" "nat_1b" {
 # -------------------------------
 # Route Tables
 # -------------------------------
-# Rota pública
 resource "aws_route_table" "pub" {
   vpc_id = aws_vpc.app_task.id
   route {
@@ -101,7 +95,6 @@ resource "aws_route_table" "pub" {
   tags = { Name = "rt-pub-app-task" }
 }
 
-# Associar subnets públicas
 resource "aws_route_table_association" "pub_1a" {
   subnet_id      = aws_subnet.pub_1a.id
   route_table_id = aws_route_table.pub.id
@@ -112,7 +105,6 @@ resource "aws_route_table_association" "pub_1b" {
   route_table_id = aws_route_table.pub.id
 }
 
-# Rota privada 1a
 resource "aws_route_table" "priv_1c" {
   vpc_id = aws_vpc.app_task.id
   route {
@@ -127,7 +119,6 @@ resource "aws_route_table_association" "priv_1c_assoc" {
   route_table_id = aws_route_table.priv_1c.id
 }
 
-# Rota privada 1b
 resource "aws_route_table" "priv_1d" {
   vpc_id = aws_vpc.app_task.id
   route {
@@ -152,7 +143,6 @@ resource "aws_ecs_cluster" "app_task" {
 # -------------------------------
 # Security Groups
 # -------------------------------
-# ALB
 resource "aws_security_group" "alb" {
   name        = "app-task-alb"
   description = "SG para o ALB"
@@ -182,28 +172,46 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS Task (frontend+backend)
-resource "aws_security_group" "ecs" {
-  name        = "app-task-ecs"
-  description = "SG para ECS Tasks"
+resource "aws_security_group" "ecs_backend" {
+  name        = "app-task-ecs-backend"
+  description = "SG para ECS Backend"
   vpc_id      = aws_vpc.app_task.id
 
   ingress {
     from_port       = 3000
     to_port         = 3000
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id] # Só aceita tráfego do ALB
+    security_groups = [aws_security_group.alb.id]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"] # permite saída para internet e RDS
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# RDS
+resource "aws_security_group" "ecs_frontend" {
+  name        = "app-task-ecs-frontend"
+  description = "SG para ECS Frontend"
+  vpc_id      = aws_vpc.app_task.id
+
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_security_group" "rds" {
   name        = "app-task-rds"
   description = "SG para RDS Postgres"
@@ -213,7 +221,7 @@ resource "aws_security_group" "rds" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.ecs.id] # só backend pode acessar
+    security_groups = [aws_security_group.ecs_backend.id]
   }
 
   egress {
@@ -241,10 +249,10 @@ resource "aws_lb" "app_task_alb" {
 }
 
 # -------------------------------
-# Target Group para backend
+# Target Groups
 # -------------------------------
-resource "aws_lb_target_group" "app_task_tg" {
-  name        = "app-task-tg"
+resource "aws_lb_target_group" "backend_tg" {
+  name        = "app-task-backend-tg"
   port        = 3000
   protocol    = "HTTP"
   vpc_id      = aws_vpc.app_task.id
@@ -253,13 +261,32 @@ resource "aws_lb_target_group" "app_task_tg" {
   health_check {
     path                = "/tasks"
     protocol            = "HTTP"
-    interval            = 120
-    timeout             = 30
+    interval            = 30
+    timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }
 
-  tags = { Name = "app-task-tg" }
+  tags = { Name = "app-task-backend-tg" }
+}
+
+resource "aws_lb_target_group" "frontend_tg" {
+  name        = "app-task-frontend-tg"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.app_task.id
+  target_type = "ip"
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = { Name = "app-task-frontend-tg" }
 }
 
 # -------------------------------
@@ -272,7 +299,23 @@ resource "aws_lb_listener" "http" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.app_task_tg.arn
+    target_group_arn = aws_lb_target_group.frontend_tg.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "backend" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_tg.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/tasks*"]
+    }
   }
 }
 
@@ -292,7 +335,7 @@ resource "aws_db_instance" "app_task" {
   identifier             = "app-task-db"
   engine                 = "postgres"
   engine_version         = "17.6"
-  instance_class         = "db.t3.micro" # pode ajustar se quiser mais potência
+  instance_class         = "db.t3.micro"
   allocated_storage      = 20
   db_name                = "tasksdb"
   username               = "postgres"
@@ -302,19 +345,11 @@ resource "aws_db_instance" "app_task" {
   storage_type           = "gp2"
   vpc_security_group_ids = [aws_security_group.rds.id]
   db_subnet_group_name   = aws_db_subnet_group.app_task.name
-  skip_final_snapshot    = true # cuidado, não cria snapshot ao destruir
+  skip_final_snapshot    = true
 
   tags = {
     Name = "rds-app-task"
   }
-}
-
-output "rds_endpoint" {
-  value = aws_db_instance.app_task.endpoint
-}
-
-output "rds_port" {
-  value = aws_db_instance.app_task.port
 }
 
 # -------------------------------
@@ -343,10 +378,23 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
 }
 
 # -------------------------------
-# ECS Task Definition
+# CloudWatch Log Groups
 # -------------------------------
-resource "aws_ecs_task_definition" "app_task" {
-  family                   = "app-task"
+resource "aws_cloudwatch_log_group" "backend" {
+  name              = "/ecs/app-task/backend"
+  retention_in_days = 7
+}
+
+resource "aws_cloudwatch_log_group" "frontend" {
+  name              = "/ecs/app-task/frontend"
+  retention_in_days = 7
+}
+
+# -------------------------------
+# ECS Task Definitions
+# -------------------------------
+resource "aws_ecs_task_definition" "backend" {
+  family                   = "app-task-backend"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
@@ -356,7 +404,7 @@ resource "aws_ecs_task_definition" "app_task" {
   container_definitions = jsonencode([
     {
       name      = "backend"
-      image     = "886436950673.dkr.ecr.us-east-1.amazonaws.com/app-task-backend:latest"
+      image     = "<SEU_ID_AWS_12DIGITOS>.dkr.ecr.us-east-1.amazonaws.com/app-task-backend:latest"
       essential = true
       portMappings = [
         {
@@ -365,16 +413,36 @@ resource "aws_ecs_task_definition" "app_task" {
         }
       ]
       environment = [
-        { name = "DB_HOST", value = "app-task-db.cmhcko6u60nk.us-east-1.rds.amazonaws.com" },
+        { name = "DB_HOST", value = aws_db_instance.app_task.address },
         { name = "DB_USER", value = "postgres" },
         { name = "DB_PASSWORD", value = "postgres" },
         { name = "DB_NAME", value = "tasksdb" },
         { name = "DB_PORT", value = "5432" }
       ]
-    },
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/app-task/backend"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "frontend" {
+  family                   = "app-task-frontend"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+
+  container_definitions = jsonencode([
     {
       name      = "frontend"
-      image     = "886436950673.dkr.ecr.us-east-1.amazonaws.com/app-task-frontend:latest"
+      image     = "<SEU_ID_AWS_12DIGITOS>.dkr.ecr.us-east-1.amazonaws.com/app-task-frontend:latest"
       essential = true
       portMappings = [
         {
@@ -382,28 +450,36 @@ resource "aws_ecs_task_definition" "app_task" {
           hostPort      = 80
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/app-task/frontend"
+          "awslogs-region"        = "us-east-1"
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
 }
 
 # -------------------------------
-# ECS Service
+# ECS Services
 # -------------------------------
-resource "aws_ecs_service" "app_task" {
-  name            = "app-task-service"
+resource "aws_ecs_service" "backend" {
+  name            = "app-task-backend-svc"
   cluster         = aws_ecs_cluster.app_task.id
-  task_definition = aws_ecs_task_definition.app_task.arn
+  task_definition = aws_ecs_task_definition.backend.arn
   launch_type     = "FARGATE"
   desired_count   = 1
 
   network_configuration {
     subnets          = [aws_subnet.priv_1c.id, aws_subnet.priv_1d.id]
-    security_groups  = [aws_security_group.ecs.id]
+    security_groups  = [aws_security_group.ecs_backend.id]
     assign_public_ip = false
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.app_task_tg.arn
+    target_group_arn = aws_lb_target_group.backend_tg.arn
     container_name   = "backend"
     container_port   = 3000
   }
@@ -411,3 +487,39 @@ resource "aws_ecs_service" "app_task" {
   depends_on = [aws_lb_listener.http]
 }
 
+resource "aws_ecs_service" "frontend" {
+  name            = "app-task-frontend-svc"
+  cluster         = aws_ecs_cluster.app_task.id
+  task_definition = aws_ecs_task_definition.frontend.arn
+  launch_type     = "FARGATE"
+  desired_count   = 1
+
+  network_configuration {
+    subnets          = [aws_subnet.priv_1c.id, aws_subnet.priv_1d.id]
+    security_groups  = [aws_security_group.ecs_frontend.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.frontend_tg.arn
+    container_name   = "frontend"
+    container_port   = 80
+  }
+
+  depends_on = [aws_lb_listener.http]
+}
+
+# -------------------------------
+# Outputs
+# -------------------------------
+output "alb_dns_name" {
+  value = aws_lb.app_task_alb.dns_name
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.app_task.endpoint
+}
+
+output "rds_port" {
+  value = aws_db_instance.app_task.port
+}

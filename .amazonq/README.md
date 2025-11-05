@@ -3,31 +3,291 @@
 Agente de IA DevOps do projeto **app-task**, responsável por apoiar na automação, provisionamento e manutenção da infraestrutura AWS do projeto.
 
 ## 🧩 Stack AWS
-- **ECS Fargate** para execução dos containers
-- **ECR** para armazenamento das imagens Docker
-- **RDS PostgreSQL** para persistência dos dados
-- **ALB (Application Load Balancer)** com Target Groups separados para frontend e backend
-- **VPC customizada** com subnets públicas e privadas
-- **NAT Gateway** e **Internet Gateway**
-- **CloudWatch Logs e Insights** para observabilidade
-- **Auto Scaling** configurado para 1–3 tasks por serviço
+
+### Computação
+- **ECS Fargate** com 2 serviços independentes (frontend e backend)
+- **ECR** com 2 repositórios privados (app-task-backend e app-task-frontend)
+- Task Definitions: 256 CPU / 512 MB RAM por serviço
+
+### Rede
+- **VPC** customizada (10.0.0.0/16) com DNS habilitado
+- **4 Subnets**: 2 públicas (us-east-1a, us-east-1b) + 2 privadas (us-east-1a, us-east-1b)
+- **2 NAT Gateways** (alta disponibilidade, 1 por AZ)
+- **Internet Gateway** para acesso público
+- **Application Load Balancer** com path-based routing:
+  - `/` → Frontend (porta 80)
+  - `/tasks*` → Backend (porta 3000)
+- **4 Security Groups** segregados (ALB, ECS Backend, ECS Frontend, RDS)
+
+### Banco de Dados
+- **RDS PostgreSQL 17** (db.t3.micro, 20GB gp2)
+- Conexão SSL obrigatória
+- Subnets privadas com acesso apenas do backend
+
+### Observabilidade
+- **CloudWatch Logs**: `/ecs/app-task/backend` e `/ecs/app-task/frontend`
+- Retenção: 7 dias
+
+### Segurança
+- **IAM Role** para ECS Task Execution
+- Security Groups com princípio de menor privilégio
+- RDS em subnets privadas sem acesso público
 
 ## 🐳 Containers
-1. **Backend**: Node.js + Express + PostgreSQL  
-   - Porta: `3000`  
-   - Health check: `/tasks`
-2. **Frontend**: Nginx + HTML/JS  
-   - Porta: `80`
+
+### Backend
+- **Imagem**: `public.ecr.aws/docker/library/node:18-slim`
+- **Porta**: 3000
+- **Health check**: `/tasks`
+- **Conexão**: PostgreSQL com SSL
+- **Variáveis de ambiente**: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT
+
+### Frontend
+- **Imagem**: `nginx:alpine`
+- **Porta**: 80
+- **Arquivos**: HTML + JavaScript vanilla
+- **API**: Requisições para `/tasks` (roteadas pelo ALB para o backend)
 
 ## 🧱 Infraestrutura como Código
-O projeto utiliza **Terraform** para criação e gerenciamento de:
-- VPC, Subnets e NAT Gateway  
-- ECS Cluster + Services  
-- ECR Repository  
-- RDS Instance  
-- ALB + Target Groups + Listeners  
-- Security Groups e IAM Roles
 
-## 💡 Como iniciar o agente
+O projeto utiliza **Terraform** para criação e gerenciamento de:
+- VPC com 4 subnets (2 públicas + 2 privadas)
+- 2 NAT Gateways + Internet Gateway
+- 4 Route Tables com associações
+- ECS Cluster + 2 Services + 2 Task Definitions
+- 2 ECR Repositories
+- RDS PostgreSQL com Subnet Group
+- ALB + 2 Target Groups + Listener + Listener Rule
+- 4 Security Groups
+- IAM Role + Policy Attachment
+- 2 CloudWatch Log Groups
+
+**Arquivo principal**: `infra/main.tf` (~550 linhas)
+
+## 📋 Regras de Infraestrutura
+
+A pasta `rules/` contém as diretrizes do projeto:
+- **docker-file.md**: Padrões para Dockerfiles (imagens base, portas, health checks)
+- **infraestrutura.md**: Arquitetura AWS (ECS, RDS, ALB, VPC, observabilidade)
+- **naming.md**: Convenções de nomenclatura para recursos AWS
+- **pipeline.md**: Diretrizes para CI/CD (CodePipeline ou GitHub Actions)
+
+## 🔧 MCP Servers
+
+### postgres-local
+Conexão com banco de dados local (Docker Compose)
 ```bash
-q chat --agent jarvis
+postgresql://postgres:postgres@localhost:5432/tasksdb
+```
+
+### postgres-aws
+Conexão com RDS na AWS (requer SSL)
+```bash
+postgresql://postgres:postgres@app-task-db.cmhcko6u60nk.us-east-1.rds.amazonaws.com:5432/tasksdb?sslmode=require
+```
+
+### awslabs.ecs-mcp-server
+Integração com ECS para gerenciamento de serviços e tasks
+
+## 💡 Ambiente e recursos para rodar o Agente IA:
+### Ambiente:
+ 1. Crie um role SSM:
+    - AWS service/ EC2
+    - Nome: app-task-role-ssm
+    - Política: AmazonSSMamagedInstanceCore
+>OBS: caso queria que o Agente tenha nivel mais elevado em sua aplicacao como manipular a aplicacao, criacao de servicos entre outros vc tera que acrescentar mais policitas de acondo com o servico que queria que ele manipule. não adiicone policita admin, adicione apenas as policitas dos servicos que vc queira que ele manipule.
+
+ 2. Crie uma instância Linux free tier: 
+    - Nome: app-task-instance-jarvis
+    - Linux free tier
+    - t2 micro free tier
+    - Security group do Alb da aplicação: app-task-alb (isso dará acesso ao Agente na aplicação)
+    - VPC da aplicação
+    - Sem par de chaves
+    - Storage: 15GB
+    - Advanced Dateils: Adicione a role ssm criada anteriormente
+    - Adicione esse user data pra instalar tudo que precisaremos:
+```bash
+#!/bin/bash
+
+#Instalar Docker, Git, jq e AWS CLI
+sudo yum update -y
+sudo yum install git -y
+sudo yum install docker -y
+sudo yum install jq -y
+
+#Instalar AWS CLI v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+sudo yum install unzip -y
+unzip awscliv2.zip
+sudo ./aws/install
+rm -rf awscliv2.zip aws/
+sudo usermod -a -G docker ec2-user
+sudo usermod -a -G docker ssm-user
+id ec2-user ssm-user
+sudo newgrp docker
+
+#Ativar docker
+sudo systemctl enable docker.service
+sudo systemctl start docker.service
+
+#Instalar docker compose 2
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -SL https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+
+#Adicionar swap
+sudo dd if=/dev/zero of=/swapfile bs=128M count=32
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+sudo echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+
+
+#Instalar node e npm
+curl -fsSL https://rpm.nodesource.com/setup_21.x | sudo bash -
+sudo yum install -y nodejs
+
+#Configurar python 3.11 e uv para uso com mcp servers da aws
+sudo dnf install python3.11 -y
+sudo ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+sudo -u ec2-user bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/ec2-user/.bashrc
+```
+
+ 3. Acesse a instência via ssm.
+ 
+```bash
+# Troque para usuariopadrão:
+sudo su ec2-user
+
+# Entre no Home da maquina:
+cd /home/ec2-user/
+
+```
+
+ 5. Baixe o Amazon Q cli developer com zip:
+    - link: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing-ssh-setup-autocomplete.html 
+
+    - Baixar e instalar:
+```bash
+# baixar para Linux x86-64:
+curl --proto '=https' --tlsv1.2 -sSf "https://desktop-release.q.us-east-1.amazonaws.com/latest/q-x86_64-linux.zip" -o "q.zip"
+
+# Instalar:
+# Extrair:
+unzip q.zip
+
+# Instalar:
+./q/install.sh
+
+# Confirme Yes e enter
+# Trabalhar com conta gratuita
+# Copie a URL cole em uma nova aba do browser e clique em autorizar
+# volte ao bash a instalação foi feita e teste:
+ q + Enter
+# para sair:
+ /q + Enter
+```  
+    - Gere uma chave ssh:
+```bash
+ssh-keygen
+
+# Dê Enter até conectar
+# Vai gerar uma chave e mostrar o caminho onde esta guardada
+```
+    - Configuração de usuário,nome e e-mail pro git:
+    - Você terá que fazer um fork do meu repositorio ou clonar, se fizer fork tera que remover o origin remoto no ec2. Se clonou meu repositorio, criou um novo repositorio em seu git e fez o push em seu repositorio é so seguir normalmente os passos seguintes.
+```bash
+git config --global user name "seu nome"
+git config --global user email "seu email"
+```
+    - Configure do git:
+```bash
+# Copie id rsa.pub
+# cat <caminho que gerou no bash onde foi salvo sua chave ssh>
+cat /home/ec2-user/.ssh/id_rsa.pub
+
+# Copie a chave do bash
+# Acesse seu git:
+
+#Seu usuário > settings > SSH and GPG keys > New SSH Key
+#- Nome: chave aws ec2 com ia
+#- Key: cole a chave neste campo
+
+# Adicione ssh Key e autorize
+```
+    - Testar conexão
+```bash
+ssh-T git@github.com
+```
+    - Acesse seu repositorio projeto em seu github
+    - Clique em clone com SSH, copie o codigo e digite em sua ec2 para clonar:
+```bash
+git clone CODIGO_DO_CLONE_SSG_DE_SEU_SEPORITORIO
+
+# Aperte Yes para cnfirmar que quer baixar o projeto no ec2
+
+# Lista as pastas do projeto:
+ls
+
+#Entre no projeto
+cd app_task
+
+#Entre na pasta do agente Jarvis:
+cd .amazonq/
+
+# Liste todas as pastas do Agente:
+ls
+
+# Entre na pasta do agente para confugurar o agente ou deixar como esta no json:
+cd cli-agents
+
+# visualizar o arquivo base do Agente com o nano(editor de texto):
+nano jarvis.json
+
+# Na pasta contem nome, descrição e o prompt informando o papel para que serve. tambem contem o tools(informa que ele tem acesso a todas ferramentas) e o resource com todos os arquivos que ele foi treinado, ou seja arquivos referencia para que ele possa atuar sua função.
+
+#Saia do nano:
+Ctrl + X
+
+# Em rules tem as regras para o Agente Seguir(recomentdo que leia para entender as regras e informações que ele terá como base)
+
+# Volte a pasta raiz app-task:
+cd ..
+cd ..
+
+```
+
+## Como usar o agente Jarvis
+- Na pasta raiz digite:
+
+```bash
+# Iniciar chat com o agente
+q chat --agent "jarvis"
+
+# Exemplos de comandos:
+# - "Revise a configuração do Terraform"
+# - "Sugira melhorias de segurança"
+# - "Como otimizar custos da infraestrutura?"
+# - "Explique o roteamento do ALB"
+# - "Verifique os logs do backend"
+# - "Crie mais um security group"
+```
+>Obs: Ao terminar de usar o agente e testar o projeto e agora deseja desprovisionar toda infraestrutura. primeiro apague a instancia criada para manupulação do agente antes de usar o "terraform destroy" para não causar falha, pois a instancia foi provisionada fora do terraform.
+
+## 📚 Documentação
+
+- **README.md**: Guia completo de apresentação e replicação e troubleshooting
+
+## 🎯 Responsabilidades do Jarvis
+
+1. Revisar código Terraform e sugerir melhorias
+2. Validar configurações de segurança (Security Groups, IAM)
+3. Otimizar custos (NAT Gateway, RDS, ECS)
+4. Sugerir implementações de CI/CD
+5. Auxiliar em troubleshooting de infraestrutura
+6. Garantir conformidade com as regras do projeto
+7. Propor melhorias de observabilidade e monitoramento

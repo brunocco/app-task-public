@@ -1,6 +1,6 @@
 # Regras de Pipeline - Projeto app-task
 
-## Ferramentas
+## Ferramentas(implementacões futuras)
 - CodePipeline + CodeBuild + ECS Deploy.
 - Alternativamente, pode ser usado **GitHub Actions** para build e deploy.
 

@@ -2,7 +2,7 @@ const taskList = document.getElementById("task-list");
 const form = document.getElementById("task-form");
 const input = document.getElementById("task-input");
 
-const API_URL = "http://app-task-alb-1964011319.us-east-1.elb.amazonaws.com/tasks"; // host do container backend
+const API_URL = "/tasks";
 
 function loadTasks() {
   fetch(API_URL)

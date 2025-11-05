@@ -87,3 +87,4 @@ Essas regras garantem consistência e clareza entre os recursos da AWS e os mód
     ManagedBy   = "Terraform"
     Owner       = "brunocco"
   }
+

@@ -1,20 +1,13 @@
-FROM node:18-bullseye
+FROM public.ecr.aws/docker/library/node:18-slim
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN apt-get update && apt-get install -y python3 g++ make \
-    && npm install --build-from-source
+RUN npm ci
 
 COPY . .
 
 EXPOSE 3000
 
-# Instala o wait-for-it
-RUN apt-get install -y wget && \
-    wget -O wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh && \
-    chmod +x wait-for-it.sh
-
-# Usa o wait-for-it para esperar o Postgres
-CMD ["./wait-for-it.sh", "db:5432", "--", "node", "app.js"]
+CMD ["node", "app.js"]

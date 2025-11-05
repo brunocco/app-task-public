@@ -1,10 +1,17 @@
 {
   "mcpServers": {
-    "postgres": {
+    "postgres-local": {
       "command": "uv",
       "args": ["run", "postgres-mcp", "--access-mode=unrestricted"],
       "env": {
         "DATABASE_URI": "postgresql://postgres:postgres@localhost:5432/tasksdb"
+      }
+    },
+    "postgres-aws": {
+      "command": "uv",
+      "args": ["run", "postgres-mcp", "--access-mode=unrestricted"],
+      "env": {
+        "DATABASE_URI": "postgresql://postgres:postgres@app-task-db.cmhcko6u60nk.us-east-1.rds.amazonaws.com:5432/tasksdb?sslmode=require"
       }
     }
   }
