@@ -227,7 +227,7 @@ cat /home/ec2-user/.ssh/id_rsa.pub
 ssh-T git@github.com
 ```
   - Acesse seu repositorio projeto em seu github
-- Clique em clone com SSH, copie o codigo e digite em sua ec2 para clonar:
+  - Clique em clone com SSH, copie o codigo e digite em sua ec2 para clonar:
 ```bash
 git clone CODIGO_DO_CLONE_SSG_DE_SEU_SEPORITORIO
 
@@ -235,9 +235,10 @@ git clone CODIGO_DO_CLONE_SSG_DE_SEU_SEPORITORIO
 
 # Lista as pastas do projeto:
 ls
-
-# Você pode pular para o proximo tópico de como usr o agente e testar. aqui a baixo  seria caso você quisesse alterar o agente de ia, conhecendo as arquivos que ele utiliza como base, para você editar ou personalizar. caso queira apenas testar pule para o proximo topico "Como usar o agente Jarvis".
-
+```
+ - Você pode pular para o proximo tópico de como usar o agente e testar. aqui a baixo seria caso você quisesse alterar o agente de ia, conhecendo as arquivos que ele utiliza como base, para você editar ou personalizar. caso queira apenas testar pule para o próximo tópico "Como usar o agente Jarvis".
+ 
+```bash
 #Entre no projeto
 cd app_task
 
