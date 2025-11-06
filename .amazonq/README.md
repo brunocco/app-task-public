@@ -172,6 +172,7 @@ cd /home/ec2-user/
     - link: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing-ssh-setup-autocomplete.html 
 
     - Baixar e instalar:
+    
 ```bash
 # baixar para Linux x86-64:
 curl --proto '=https' --tlsv1.2 -sSf "https://desktop-release.q.us-east-1.amazonaws.com/latest/q-x86_64-linux.zip" -o "q.zip"
@@ -190,21 +191,23 @@ unzip q.zip
  q + Enter
 # para sair:
  /q + Enter
-```  
-    - Gere uma chave ssh:
+```
+- Gere uma chave ssh:
+    
 ```bash
 ssh-keygen
 
 # Dê Enter até conectar
 # Vai gerar uma chave e mostrar o caminho onde esta guardada
 ```
-    - Configuração de usuário,nome e e-mail pro git:
-    - Você terá que fazer um fork do meu repositorio ou clonar, se fizer fork tera que remover o origin remoto no ec2. Se clonou meu repositorio, criou um novo repositorio em seu git e fez o push em seu repositorio é so seguir normalmente os passos seguintes.
+  - Configuração de usuário,nome e e-mail pro git:
+  - Você terá que fazer um fork do meu repositorio ou clonar, se fizer fork tera que remover o origin remoto no ec2. Se clonou meu repositorio, criou um novo repositorio em seu git e fez o push em seu repositorio é so seguir normalmente os passos seguintes.
+  
 ```bash
 git config --global user.name "seu nome"
 git config --global user.email "seu email"
 ```
-    - Configure do git:
+  - Configure do git:
 ```bash
 # Copie id rsa.pub
 # cat <caminho que gerou no bash onde foi salvo sua chave ssh>
@@ -219,12 +222,12 @@ cat /home/ec2-user/.ssh/id_rsa.pub
 
 # Adicione ssh Key e autorize
 ```
-    - Testar conexão
+  - Testar conexão
 ```bash
 ssh-T git@github.com
 ```
-    - Acesse seu repositorio projeto em seu github
-    - Clique em clone com SSH, copie o codigo e digite em sua ec2 para clonar:
+  - Acesse seu repositorio projeto em seu github
+- Clique em clone com SSH, copie o codigo e digite em sua ec2 para clonar:
 ```bash
 git clone CODIGO_DO_CLONE_SSG_DE_SEU_SEPORITORIO
 
@@ -232,6 +235,8 @@ git clone CODIGO_DO_CLONE_SSG_DE_SEU_SEPORITORIO
 
 # Lista as pastas do projeto:
 ls
+
+# Você pode pular para o proximo tópico de como usr o agente e testar. aqui a baixo  seria caso você quisesse alterar o agente de ia, conhecendo as arquivos que ele utiliza como base, para você editar ou personalizar. caso queira apenas testar pule para o proximo topico "Como usar o agente Jarvis".
 
 #Entre no projeto
 cd app_task
