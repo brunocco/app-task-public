@@ -95,7 +95,7 @@ Integração com ECS para gerenciamento de serviços e tasks
     - AWS service/ EC2
     - Nome: app-task-role-ssm
     - Política: AmazonSSMamagedInstanceCore
->OBS: caso queria que o Agente tenha nivel mais elevado em sua aplicacao como manipular a aplicação, crição de serviços entre outros você terá que acrescentar mais politicas de acondo com o serviço que queria que ele manipule. não adiicone politicaa admin, adicione apenas as politicas dos serviços que vc queira que ele manipule.
+>OBS: caso queria que o Agente tenha nível mais elevado em sua aplicação como manipular a aplicação, criação de serviços entre outros você terá que acrescentar mais politicas de acondo com o serviço que queria que ele manipule. não adiicone politica admin, adicione apenas as politicas dos serviços que vc queira que ele manipule.
 
  2. Crie uma instância Linux free tier: 
     - Nome: app-task-instance-jarvis
