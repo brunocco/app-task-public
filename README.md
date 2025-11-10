@@ -146,7 +146,7 @@ aws ecr create-repository --repository-name app-task-frontend --region us-east-1
 
 ### 4️⃣ Atualizar Account ID no Terraform
 
-Edite `infra/main.tf` e substitua `886436950673` pelo seu AWS Account ID nas seguintes linhas:
+Edite `infra/main.tf` e substitua `<SEU_ID_AWS_12DIGITOS>` pelo seu AWS Account ID nas seguintes linhas:
 - Task Definition do backend (linha ~450)
 - Task Definition do frontend (linha ~490)
 
@@ -154,11 +154,11 @@ Ou execute:
 ```bash
 # Linux/Mac
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-sed -i "s/886436950673/$ACCOUNT_ID/g" infra/main.tf
+sed -i "s/<SEU_ID_AWS_12DIGITOS>/$ACCOUNT_ID/g" infra/main.tf
 
 # Windows PowerShell
 $ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text)
-(Get-Content infra/main.tf) -replace '886436950673', $ACCOUNT_ID | Set-Content infra/main.tf
+(Get-Content infra/main.tf) -replace '<SEU_ID_AWS_12DIGITOS>', $ACCOUNT_ID | Set-Content infra/main.tf
 ```
 
 ### 5️⃣ Provisionar Infraestrutura com Terraform
